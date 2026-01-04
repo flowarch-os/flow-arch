@@ -1,0 +1,118 @@
+{
+    "layer": "top",
+    "position": "top",
+    "height": 34,
+    "spacing": 4,
+    "modules-left": [
+        "hyprland/workspaces",
+        "mpris"
+    ],
+    "modules-center": [
+        "custom/gammastep",
+        "custom/clock",
+        "custom/timer"
+    ],
+    "modules-right": [
+        "pulseaudio",
+        "cpu",
+        "memory",
+        "power-profiles-daemon",
+        "battery",
+        "tray",
+        "custom/settings"
+    ],
+    "custom/settings": {
+        "format": "‎ ‎",
+        "on-click": "~/.config/hypr/scripts/settings_app.py",
+        "tooltip": false
+    },
+    "custom/timer": {
+        "exec": "cat /tmp/session_timer",
+        "interval": 1,
+        "format": "󱎫 {}",
+        "tooltip": false
+    },
+    "custom/gammastep": {
+        "interval": 2,
+        "exec": "~/.config/hypr/scripts/blue_light_control.sh status",
+        "on-click": "~/.config/hypr/scripts/gammastep.sh",
+        "tooltip": false
+    },
+    "hyprland/workspaces": {
+        "format": "{name}",
+        "on-click": "activate",
+        "sort-by-number": true
+    },
+    "power-profiles-daemon": {
+      "format": "{icon}‎ ‎",
+      "tooltip-format": "Power profile: {profile}\nDriver: {driver}",
+      "tooltip": true,
+      "format-icons": {
+        "default": "",
+        "performance": "",
+        "balanced": "",
+        "power-saver": ""
+      }
+    },
+    "custom/clock": {
+        "exec": "~/.config/hypr/scripts/custom_clock.sh",
+        "interval": 1,
+        "return-type": "json",
+        "format": "{}",
+        "tooltip": true,
+        "on-click-right": "~/.config/hypr/scripts/change_timezone.sh"
+    },
+    "pulseaudio": {
+        "format": "{icon}‎ ‎{volume}%",
+        "format-bluetooth": "{icon}‎ ‎{volume}%",
+        "format-bluetooth-muted": " {volume}%",
+        "format-headphone": " &nbsp;{volume}%",
+        "format-muted": " {volume}%",
+        "format-icons": {
+            "headphone": "",
+            "hands-free": "",
+            "headset": "",
+            "phone": "",
+            "portable": "",
+            "car": "",
+            "default": ["", "", ""]
+        },
+        "on-click": "wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle",
+        "on-click-right": "pavucontrol",
+        "on-scroll-up": "wpctl set-volume -l 1.5 @DEFAULT_AUDIO_SINK@ 5%+",
+        "on-scroll-down": "wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-"
+    },
+    "cpu": {
+        "format": " {usage}%",
+        "tooltip": true,
+        "on-click": "kitty btop --force-utf"
+    },
+    "memory": {
+        "format": " {percentage}%"
+    },
+    "battery": {
+        "states": {
+            "warning": 30,
+            "critical": 15
+        },
+        "format": "{icon}  {capacity}%",
+        "format-charging": "  {capacity}%",
+        "format-plugged": "  {capacity}%",
+        "format-icons": ["", "", "", "", ""]
+    },
+    "mpris": {
+        "format": "{player_icon} {title}",
+        "format-paused": "{status_icon} {title}",
+        "player-icons": {
+            "default": "",
+            "mpd": ""
+        },
+        "status-icons": {
+            "paused": ""
+        },
+        "max-length": 30
+    },
+    "tray": {
+        "spacing": 10
+    }
+}

@@ -1,0 +1,13 @@
+mode=drun
+show=drun
+layer=overlay
+width=40%
+height=40%
+location=center
+no_actions=true
+insensitive=true
+prompt=Search...
+filter_rate=100
+allow_markup=true
+image_size=24
+key_expand=Tab

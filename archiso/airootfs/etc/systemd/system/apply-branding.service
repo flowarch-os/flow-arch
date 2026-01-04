@@ -1,0 +1,13 @@
+[Unit]
+Description=Apply Flow Arch Branding to Calamares
+Before=sddm.service
+
+[Service]
+Type=oneshot
+ExecStartPre=/usr/bin/mkdir -p /etc/calamares/branding/default
+ExecStart=/usr/bin/cp -rf /usr/share/flow-arch/branding/. /etc/calamares/branding/default/
+ExecStartPost=/usr/bin/cp -f /usr/share/flow-arch/calamares-fixes/packages.conf /etc/calamares/modules/packages.conf
+ExecStartPost=/usr/bin/cp -f /usr/share/flow-arch/calamares-fixes/shellprocess-final.conf /etc/calamares/modules/shellprocess-final.conf
+
+[Install]
+WantedBy=multi-user.target

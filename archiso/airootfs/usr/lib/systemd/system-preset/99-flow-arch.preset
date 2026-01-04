@@ -1,0 +1,4 @@
+enable sddm.service
+enable NetworkManager.service
+enable bluetooth.service
+enable power-profiles-daemon.service

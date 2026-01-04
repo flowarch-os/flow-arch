@@ -1,0 +1,61 @@
+window {
+    margin: 0px;
+    border: 2px solid #00aaff;
+    background-color: rgba(0, 0, 30, 0.95);
+    border-radius: 10px;
+    font-family: "JetBrains Mono Nerd Font";
+    font-size: 16px;
+}
+
+#input {
+    margin: 5px;
+    border: none;
+    background-color: #003366;
+    color: #ffffff;
+    border-radius: 5px;
+}
+
+#inner-box {
+    margin: 5px;
+    border: none;
+    background-color: transparent;
+}
+
+#outer-box {
+    margin: 5px;
+    border: none;
+    background-color: transparent;
+}
+
+#scroll {
+    margin: 0px;
+    border: none;
+}
+
+#text {
+    margin: 5px;
+    border: none;
+    color: #ffffff;
+}
+
+#entry:selected {
+    background-color: #00aaff;
+    color: #000033;
+    border-radius: 5px;
+}
+
+/* Clipboard Manager Specific Styles */
+#cliphist {
+    background-color: rgba(20, 20, 20, 0.98);
+    border: 2px solid #ff79c6; /* distinct pink border */
+    font-size: 14px; /* slightly smaller font */
+}
+
+#cliphist #input {
+    background-color: #2a2a2a;
+}
+
+#cliphist #entry:selected {
+    background-color: #ff79c6;
+    color: #1a1a1a;
+}

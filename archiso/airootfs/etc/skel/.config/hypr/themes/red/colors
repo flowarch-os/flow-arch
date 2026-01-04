@@ -1,0 +1,4 @@
+bg_color='330000'
+fg_color='ff0000'
+active_border='ff0000'
+inactive_border='330000'

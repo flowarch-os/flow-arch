@@ -1,0 +1,46 @@
+{
+    "goals": [
+        "Work",
+        "Study",
+        "Leisure"
+    ],
+    "goal_themes": {
+        "Work": "blue",
+        "Study": "teal",
+        "Leisure": "purple"
+    },
+    "pomodoro": {
+        "work_duration": 25,
+        "short_break": 5,
+        "long_break": 25,
+        "intention_popup": true
+    },
+    "filters": {
+        "Work": [
+            "facebook.com",
+            "instagram.com",
+            "reddit.com",
+            "twitter.com",
+            "x.com"
+        ],
+        "Study": [
+            "youtube.com",
+            "netflix.com",
+            "twitch.tv",
+            "tiktok.com"
+        ],
+        "Leisure": []
+    },
+    "shutdown_feedback": true,
+    "ad_blocking": true,
+    "calendar_events": [],
+    "tasks": [
+        {
+            "title": "Finish OS Setup",
+            "done": false,
+            "goal": "Work"
+        }
+    ],
+    "bedtime_start": "23:00",
+    "bedtime_end": "05:00"
+}

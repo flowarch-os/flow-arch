@@ -1,0 +1,6 @@
+#!/bin/bash
+# Allow root to connect to the Wayland display
+xhost +SI:localuser:root
+
+# Run Calamares with environment preservation
+sudo -E calamares -D 8

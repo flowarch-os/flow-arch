@@ -1,0 +1,11 @@
+[Unit]
+Description=Fix permissions for liveuser home directory
+Before=sddm.service
+ConditionPathExists=/home/liveuser
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/chown -R liveuser:liveuser /home/liveuser
+
+[Install]
+WantedBy=multi-user.target

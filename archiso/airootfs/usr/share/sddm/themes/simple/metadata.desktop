@@ -1,0 +1,12 @@
+[SddmGreeterTheme]
+Name=simple
+Description=A very simple theme
+Author=Me
+Copyright=2025
+License=MIT
+Type=sddm-theme
+Version=0.1
+MainScript=Main.qml
+ConfigFile=theme.conf
+Theme-Id=simple
+Theme-API=2.0
