@@ -9,6 +9,7 @@
     ],
     "modules-center": [
         "custom/gammastep",
+        "custom/caffeine",
         "custom/clock",
         "custom/timer"
     ],
@@ -36,7 +37,16 @@
         "interval": 2,
         "exec": "~/.config/hypr/scripts/blue_light_control.sh status",
         "on-click": "~/.config/hypr/scripts/gammastep.sh",
+        "format": "{}‎ ‎",
         "tooltip": false
+    },
+    "custom/caffeine": {
+        "exec": "~/.config/hypr/scripts/caffeine.sh status",
+        "interval": 2,
+        "on-click": "~/.config/hypr/scripts/caffeine.sh toggle",
+        "return-type": "json",
+        "format": "{}‎ ‎",
+        "tooltip": true
     },
     "hyprland/workspaces": {
         "format": "{name}",

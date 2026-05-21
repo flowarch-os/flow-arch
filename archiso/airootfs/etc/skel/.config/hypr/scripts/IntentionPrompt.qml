@@ -13,7 +13,7 @@ ApplicationWindow {
     // Background Image
     Image {
         anchors.fill: parent
-        source: "file://~/.config/hypr/themes/wallpaper_blue.svg"
+        source: "file:///home/malek/.config/hypr/themes/wallpaper_blue.svg"
         fillMode: Image.PreserveAspectCrop
         
         // Dark Overlay matching hyprlock

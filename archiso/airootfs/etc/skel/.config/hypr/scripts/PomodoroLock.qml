@@ -14,7 +14,7 @@ ApplicationWindow {
     // Background (Same as hyprlock)
     Image {
         anchors.fill: parent
-        source: "file://~/.config/hypr/themes/wallpaper_blue.svg"
+        source: "file:///home/malek/.config/hypr/themes/wallpaper_blue.svg"
         fillMode: Image.PreserveAspectCrop
         Rectangle { anchors.fill: parent; color: "black"; opacity: 0.6 }
     }

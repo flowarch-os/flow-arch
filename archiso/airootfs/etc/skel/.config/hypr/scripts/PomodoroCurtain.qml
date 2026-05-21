@@ -11,7 +11,7 @@ ApplicationWindow {
 
     Image {
         anchors.fill: parent
-        source: "file://~/.config/hypr/themes/wallpaper_blue.svg"
+        source: "file:///home/malek/.config/hypr/themes/wallpaper_blue.svg"
         fillMode: Image.PreserveAspectCrop
         opacity: 0.3 // Dimmed wallpaper
     }

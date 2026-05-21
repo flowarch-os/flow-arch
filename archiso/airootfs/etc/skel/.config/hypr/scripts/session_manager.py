@@ -15,8 +15,8 @@ STATUS_TEXT_FILE = "/tmp/pomodoro_status_text"
 HYPRLOCK_UNIFIED = os.path.expanduser("~/.config/hypr/hyprlock_unified.conf")
 SETTINGS_FILE = os.path.expanduser("~/.config/hypr/settings.json")
 SWITCH_THEME_SCRIPT = os.path.expanduser("~/.config/hypr/scripts/switch_theme.sh")
-HOSTS_MANAGER_SCRIPT = "/usr/local/bin/hosts_manager.py"
-REDIRECT_SERVER_SCRIPT = "/usr/local/bin/redirect_server.py"
+HOSTS_MANAGER_SCRIPT = os.path.expanduser("~/.config/hypr/scripts/hosts_manager.py")
+REDIRECT_SERVER_SCRIPT = os.path.expanduser("~/.config/hypr/scripts/redirect_server.py")
 CA_MANAGER_SCRIPT = os.path.expanduser("~/.config/hypr/scripts/ca_manager.py")
 
 def notify(summary, body, urgency="normal"):
@@ -93,6 +93,238 @@ def get_new_intention(current_goal):
         print(f"Error: {e}")
         return "Focus"
 
+import threading
+import socket
+
+def hyprctl_fast(cmd, json_output=False):
+    hypr_sig = os.getenv("HYPRLAND_INSTANCE_SIGNATURE")
+    if not hypr_sig: return None
+    sock_path = f"/tmp/hypr/{hypr_sig}/.socket.sock"
+    
+    try:
+        s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        s.connect(sock_path)
+        
+        full_cmd = f"j/{cmd}" if json_output else f"/{cmd}"
+        # Hyprland socket commands are simple strings. 
+        # Actually dispatch syntax is usually just "dispatch arg..." or just "arg..." depending on socket.
+        # Command socket accepts raw args like "activewindow" or "dispatch ..."
+        # To get JSON, use "j/activewindow"
+        
+        if not json_output and cmd.startswith("dispatch"):
+            # dispatch commands via socket are just the command string usually
+            # e.g. "dispatch closewindow ..."
+            pass
+            
+        s.sendall(full_cmd.encode('utf-8'))
+        
+        # Read response
+        response = b""
+        while True:
+            chunk = s.recv(4096)
+            if not chunk: break
+            response += chunk
+            
+        s.close()
+        res_str = response.decode('utf-8')
+        
+        if json_output:
+            return json.loads(res_str)
+        return res_str
+    except Exception as e:
+        # Fallback if direct socket fails (unlikely)
+        # print(f"Socket error: {e}")
+        return None
+
+def check_active_window_fast(keywords):
+    if not keywords: return
+    try:
+        # Zero-latency socket query
+        client = hyprctl_fast("activewindow", json_output=True)
+        if not client: return
+        
+        title = client.get("title", "").lower()
+        # Space stripping for robustness
+        stripped_title = title.replace(" ", "")
+        address = client.get("address")
+        
+        for kw in keywords:
+            stripped_kw = kw.lower().replace(" ", "")
+            if stripped_kw and stripped_kw in stripped_title:
+                print(f"FAST BLOCK: {title}")
+                hyprctl_fast(f"dispatch sendshortcut CTRL,W,address:{address}")
+                notify("Focus Guard", f"Fast Block: {title}", "critical")
+                return
+    except:
+        pass
+
+def listen_hyprland_events(keywords):
+    if not keywords: return
+    
+    hypr_sig = os.getenv("HYPRLAND_INSTANCE_SIGNATURE")
+    if not hypr_sig: return
+    
+    sock_path = f"/tmp/hypr/{hypr_sig}/.socket2.sock"
+    
+    def worker():
+        try:
+            s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+            s.connect(sock_path)
+            f = s.makefile('r')
+            
+            for line in f:
+                if ">>" not in line: continue
+                event, data = line.strip().split(">>", 1)
+                
+                if event == "activewindow" or event == "windowtitle":
+                    # Instant check on the active window
+                    check_active_window_fast(keywords)
+                    
+        except Exception as e:
+            print(f"Socket listener error: {e}")
+
+    t = threading.Thread(target=worker, daemon=True)
+    t.start()
+
+def check_window_titles(keywords):
+    if not keywords: return
+    
+    # Static cache to prevent spamming the same window
+    if not hasattr(check_window_titles, "last_trigger"):
+        check_window_titles.last_trigger = {}
+        
+    try:
+        result = subprocess.run(["hyprctl", "clients", "-j"], capture_output=True, text=True)
+        clients = json.loads(result.stdout)
+        
+        current_time = time.time()
+        
+        for client in clients:
+            title = client.get("title", "").lower()
+            # Remove all spaces for robust matching (catches "n u d e")
+            stripped_title = title.replace(" ", "")
+            address = client.get("address")
+            
+            # Skip if we acted on this window recently (5s cooldown)
+            if current_time - check_window_titles.last_trigger.get(address, 0) < 5:
+                continue
+            
+            for kw in keywords:
+                # Also strip spaces from the keyword itself
+                stripped_kw = kw.lower().replace(" ", "")
+                if stripped_kw and stripped_kw in stripped_title:
+                    print(f"Blocking content in: {title} (Matches '{kw}')")
+                    
+                    # Close the TAB (Ctrl+W) instead of the whole window
+                    subprocess.run(["hyprctl", "dispatch", "sendshortcut", f"CTRL,W,address:{address}"])
+                    
+                    notify("Focus Guard", f"Closed Tab: {title} (Keyword: {kw})", "critical")
+                    
+                    # Mark processed
+                    check_window_titles.last_trigger[address] = current_time
+                    return
+    except Exception as e:
+        print(f"Error checking windows: {e}")
+
+def check_visual_content(sensitivity=50):
+    try:
+        from PIL import Image
+    except ImportError:
+        return
+
+    screenshot_path = "/tmp/visual_guard.png"
+    
+    try:
+        # Get Active Workspace
+        res_ws = subprocess.run(["hyprctl", "activeworkspace", "-j"], capture_output=True, text=True)
+        if not res_ws.stdout.strip(): return
+        active_ws_id = json.loads(res_ws.stdout).get("id")
+        
+        # Get Clients on Active Workspace
+        res_clients = subprocess.run(["hyprctl", "clients", "-j"], capture_output=True, text=True)
+        if not res_clients.stdout.strip(): return
+        all_clients = json.loads(res_clients.stdout)
+        
+        target_clients = [c for c in all_clients if c.get("workspace", {}).get("id") == active_ws_id]
+        
+        # Limit to checking 3 windows max per cycle to save CPU (prioritize last focused? or just list order)
+        # List order usually Z-order or creation.
+        # Let's check ALL but stop on first detection.
+        
+        for win in target_clients:
+            x, y = win.get("at", [0, 0])
+            w, h = win.get("size", [0, 0])
+            addr = win.get("address")
+            title = win.get("title", "Unknown")
+            
+            # Skip tiny windows (e.g. picture in picture or tooltips)
+            if w < 100 or h < 100: continue
+            
+            # Capture specific window
+            geometry = f"{x},{y} {w}x{h}"
+            subprocess.run(["grim", "-g", geometry, screenshot_path], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            
+            if not os.path.exists(screenshot_path): continue
+            
+            img = Image.open(screenshot_path)
+            img = img.resize((100, 100))
+            img = img.convert("RGB")
+            
+            total_pixels = 100 * 100
+            global_skin_pixels = 0
+            
+            # Grid settings
+            grid_size = 5
+            block_size = 20
+            grid_counts = [[0 for _ in range(grid_size)] for _ in range(grid_size)]
+            
+            for px in range(100):
+                for py in range(100):
+                    r, g, b = img.getpixel((px, py))
+                    if (r > 95 and g > 40 and b > 20 and
+                        max(r, g, b) - min(r, g, b) > 15 and
+                        abs(r - g) > 15 and
+                        r > g and r > b):
+                        
+                        global_skin_pixels += 1
+                        
+                        gx = px // block_size
+                        gy = py // block_size
+                        if gx < grid_size and gy < grid_size:
+                            grid_counts[gy][gx] += 1
+            
+            # Checks
+            global_pct = (global_skin_pixels / total_pixels) * 100
+            
+            max_sector_pct = 0
+            for r in range(grid_size):
+                for c in range(grid_size):
+                    pct = (grid_counts[r][c] / (block_size * block_size)) * 100
+                    if pct > max_sector_pct: max_sector_pct = pct
+            
+            trigger = False
+            reason = ""
+            
+            thresh_global = float(sensitivity)
+            thresh_sector = float(sensitivity) + 15
+            
+            if global_pct > thresh_global:
+                trigger = True
+                reason = f"Global {global_pct:.0f}%"
+            elif max_sector_pct > thresh_sector:
+                trigger = True
+                reason = f"Sector {max_sector_pct:.0f}%"
+                
+            if trigger: 
+                print(f"Visual Guard Triggered on '{title}': {reason}")
+                if addr:
+                    subprocess.run(["hyprctl", "dispatch", "sendshortcut", f"CTRL,W,address:{addr}"])
+                    notify("Visual Guard", f"Blocked Content in {title[:15]}... ({reason})", "critical")
+                    return # Stop scanning others if one is killed (avoids race/confusion)
+                    
+    except Exception as e:
+        print(f"Visual check error: {e}")
+
 def run_pomodoro(data, settings):
     pomo_settings = settings.get("pomodoro", {})
     work_duration = int(pomo_settings.get("work_duration", 25)) * 60
@@ -102,6 +334,9 @@ def run_pomodoro(data, settings):
     
     current_intention = data.get("intention", "Focus")
     goal = data.get("goal", "Work")
+    keywords = settings.get("keyword_blacklist", [])
+    visual_guard = settings.get("visual_guard", False)
+    visual_sensitivity = settings.get("visual_sensitivity", 50)
     
     # Initialize intention file
     try:
@@ -111,6 +346,7 @@ def run_pomodoro(data, settings):
         pass
         
     pomodoros_completed = 0
+    listen_hyprland_events(keywords)
     
     while True:
         # --- WORK PHASE ---
@@ -118,11 +354,25 @@ def run_pomodoro(data, settings):
         start_time = time.time()
         end_time = start_time + work_duration
         
+        tick = 0
         while time.time() < end_time:
+            # Reload settings dynamically
+            if tick % 2 == 0: # Every 4s
+                current_settings = load_settings()
+                visual_guard = current_settings.get("visual_guard", False)
+                visual_sensitivity = current_settings.get("visual_sensitivity", 50)
+                # Note: keywords update requires restarting listener? 
+                # For now just Visual Guard dynamic update is requested.
+            
+            check_window_titles(keywords)
+            if visual_guard and tick % 3 == 0: # Every 6s
+                check_visual_content(visual_sensitivity)
+                
             remaining = end_time - time.time()
             mins, secs = divmod(int(remaining), 60)
             write_file(TIMER_FILE, f"{mins:02d}:{secs:02d} [WORK]")
-            time.sleep(1)
+            time.sleep(2)
+            tick += 1
             
         pomodoros_completed += 1
         
@@ -176,16 +426,33 @@ def run_pomodoro(data, settings):
             
         log_session({"goal": goal, "intention": current_intention}, session_type="pomodoro_segment")
 
-def run_standard_timer(data):
+def run_standard_timer(data, settings):
     try:
         duration_mins = int(data.get("duration", 60))
     except:
         duration_mins = 60
         
+    keywords = settings.get("keyword_blacklist", [])
+    visual_guard = settings.get("visual_guard", False)
+    visual_sensitivity = settings.get("visual_sensitivity", 50)
     end_time = time.time() + (duration_mins * 60)
     warning_sent = False
+    
+    # Start Event Listener for instant blocking
+    listen_hyprland_events(keywords)
 
+    tick = 0
     while True:
+        # Reload settings dynamically
+        if tick % 2 == 0:
+            current_settings = load_settings()
+            visual_guard = current_settings.get("visual_guard", False)
+            visual_sensitivity = current_settings.get("visual_sensitivity", 50)
+
+        check_window_titles(keywords)
+        if visual_guard and tick % 3 == 0:
+            check_visual_content(visual_sensitivity)
+        
         remaining = end_time - time.time()
         if remaining <= 0:
             break
@@ -197,7 +464,8 @@ def run_standard_timer(data):
         mins = int(max(0, remaining) // 60)
         secs = int(max(0, remaining) % 60)
         write_file(TIMER_FILE, f"{mins:02d}:{secs:02d}")
-        time.sleep(1)
+        time.sleep(2) # Reduced polling frequency
+        tick += 1
 
     # Clean up blocks before exit
     clean_blocks()
@@ -226,12 +494,31 @@ def start_redirect_server():
         log_debug("Starting Redirect Server...")
         subprocess.Popen(["sudo", REDIRECT_SERVER_SCRIPT], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
+MEDIA_DOMAINS = [
+    "googlevideo.com", "ytimg.com", "vimeo.com", "dailymotion.com",
+    "fbcdn.net", "twimg.com", "twitpic.com", "imgur.com", "giphy.com",
+    "tenor.com", "gfycat.com", "photobucket.com", "flickr.com",
+    "images-amazon.com", "media-amazon.com", "m.media-amazon.com",
+    "static.flickr.com", "cdninstagram.com", "tiktokv.com", "byteoversea.com",
+    "ibyteimg.com", "p16-tiktokcdn-com.akamaized.net", "vimeocdn.com",
+    "pinterest.com", "pinimg.com", "redditmedia.com", "thumbs.redditmedia.com"
+]
+
 def apply_blocks(goal, settings):
     log_debug(f"Applying blocks for {goal}")
     filters = settings.get("filters", {}).get(goal, [])
-    if filters:
-        print(f"Applying blocklist for {goal}: {filters}")
-        domains_str = ",".join(filters)
+    global_blacklist = settings.get("global_blacklist", [])
+    
+    # Combine and unique
+    all_blocks = list(set(filters + global_blacklist))
+    
+    # System-wide Media Blackout (Nuclear Source-level block)
+    if settings.get("media_blackout", False):
+        all_blocks = list(set(all_blocks + MEDIA_DOMAINS))
+    
+    if all_blocks:
+        print(f"Applying blocklist for {goal} (including global/media): {len(all_blocks)} domains")
+        domains_str = ",".join(all_blocks)
         subprocess.run(["sudo", HOSTS_MANAGER_SCRIPT, domains_str])
     else:
         print(f"No blocklist for {goal}, clearing blocks.")
@@ -272,6 +559,20 @@ def main():
         try: os.remove(SESSION_FILE)
         except: pass
 
+    # Check for Normal Mode (Duration 0)
+    try:
+        duration = int(data.get("duration", 60))
+    except (ValueError, TypeError):
+        duration = 60
+
+    if duration == 0:
+        log_debug("Normal Mode: Duration is 0. Applying theme only.")
+        clean_blocks()
+        current_goal = data.get("goal")
+        if current_goal:
+            apply_theme(current_goal, settings)
+        return
+
     # Start Services
     start_redirect_server()
     
@@ -295,7 +596,7 @@ def main():
         if is_pomodoro:
             run_pomodoro(data, settings)
         else:
-            run_standard_timer(data)
+            run_standard_timer(data, settings)
     except KeyboardInterrupt:
         clean_blocks()
     finally:

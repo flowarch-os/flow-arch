@@ -3,9 +3,10 @@ import sys
 import os
 import gi
 import argparse
+import subprocess
 
 gi.require_version('Gtk', '4.0')
-from gi.repository import Gtk, Gdk, Gio
+from gi.repository import Gtk, Gdk, Gio, GLib
 
 class SessionFeedbackApp(Gtk.Application):
     def __init__(self, goal, intention):
@@ -14,6 +15,7 @@ class SessionFeedbackApp(Gtk.Application):
         self.goal = goal
         self.intention = intention
         self.rating = 5
+        self.timer_seconds = 120 # 2 minutes
 
     def do_activate(self):
         self.apply_theme()
@@ -31,9 +33,20 @@ class SessionFeedbackApp(Gtk.Application):
         main_box.add_css_class("window-content")
         window.set_child(main_box)
 
+        # Header Row with Timer
+        header_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
         lbl_title = Gtk.Label(label="Session Complete")
         lbl_title.add_css_class("title-1")
-        main_box.append(lbl_title)
+        lbl_title.set_hexpand(True)
+        lbl_title.set_xalign(0)
+        header_box.append(lbl_title)
+        
+        self.lbl_timer = Gtk.Label(label="2:00")
+        self.lbl_timer.add_css_class("dim-label")
+        self.lbl_timer.set_halign(Gtk.Align.END)
+        header_box.append(self.lbl_timer)
+        
+        main_box.append(header_box)
         
         main_box.append(Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL))
 
@@ -90,6 +103,24 @@ class SessionFeedbackApp(Gtk.Application):
         main_box.append(btn_box)
 
         window.present()
+        
+        # Start Timer
+        print("Starting timer...")
+        GLib.timeout_add_seconds(1, self.update_timer)
+
+    def update_timer(self):
+        self.timer_seconds -= 1
+        mins, secs = divmod(self.timer_seconds, 60)
+        self.lbl_timer.set_label(f"{mins}:{secs:02d}")
+        # print(f"Tick: {self.timer_seconds}") # Debug
+        
+        if self.timer_seconds <= 0:
+            print("TIMER_EXPIRED")
+            subprocess.run(["systemctl", "poweroff"])
+            self.quit()
+            return False
+            
+        return True
 
     def on_rating_change(self, scale):
         val = int(scale.get_value())

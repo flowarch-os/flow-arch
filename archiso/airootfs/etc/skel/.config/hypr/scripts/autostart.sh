@@ -39,8 +39,3 @@ blueman-applet &
 
 # Start Session Manager (Delayed to ensure services are ready)
 (sleep 1 && ~/.config/hypr/scripts/session_manager.py) &
-
-# Launch Calamares Installer automatically (ONLY for liveuser)
-if [ "$USER" = "liveuser" ]; then
-    (sleep 3 && /usr/local/bin/calamares-wayland) &
-fi

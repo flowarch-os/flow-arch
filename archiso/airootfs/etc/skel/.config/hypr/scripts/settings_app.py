@@ -40,6 +40,8 @@ class SettingsApp(Gtk.Application):
         sidebar.set_margin_end(10)
         
         stack = Gtk.Stack()
+        stack.set_hexpand(True)
+        stack.set_vexpand(True)
         
         stack_switcher = Gtk.StackSwitcher()
         stack_switcher.set_stack(stack)
@@ -160,6 +162,12 @@ class SettingsApp(Gtk.Application):
             "goals": ["Work", "Study"],
             "goal_themes": {},
             "filters": {},
+            "global_blacklist": [],
+            "keyword_blacklist": [],
+            "visual_guard": False,
+            "visual_sensitivity": 50,
+            "media_blackout": False,
+            "media_allowlist": ["google.com", "drive.google.com", "classroom.google.com"],
             "pomodoro": {"work_duration": 25, "short_break": 5, "long_break": 20, "intention_popup": True},
             "shutdown_feedback": True,
             "calendar_events": [],
@@ -1286,6 +1294,7 @@ class SettingsApp(Gtk.Application):
 
     def create_dashboard_page(self):
         scrolled = Gtk.ScrolledWindow()
+        scrolled.set_vexpand(True)
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=20)
         box.set_margin_top(30); box.set_margin_bottom(30); box.set_margin_start(30); box.set_margin_end(30)
         scrolled.set_child(box)
@@ -1339,6 +1348,7 @@ class SettingsApp(Gtk.Application):
 
     def create_journal_page(self):
         scrolled = Gtk.ScrolledWindow()
+        scrolled.set_vexpand(True)
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=20)
         box.set_margin_top(30); box.set_margin_bottom(30); box.set_margin_start(30); box.set_margin_end(30)
         scrolled.set_child(box)
@@ -1523,19 +1533,20 @@ class SettingsApp(Gtk.Application):
         self.save_settings()
     
     def create_filters_page(self):
+        scrolled = Gtk.ScrolledWindow()
+        scrolled.set_vexpand(True)
+        
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=20)
         box.set_margin_top(30)
         box.set_margin_bottom(30)
         box.set_margin_start(30)
         box.set_margin_end(30)
+        scrolled.set_child(box)
         
         # --- Ad Blocking Section ---
-        ad_frame = Gtk.Frame(label="Global Ad Blocking")
+        ad_expander = Gtk.Expander(label="Global Ad Blocking")
         ad_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
-        ad_box.set_margin_top(15)
-        ad_box.set_margin_bottom(15)
-        ad_box.set_margin_start(15)
-        ad_box.set_margin_end(15)
+        ad_box.set_margin_top(10); ad_box.set_margin_bottom(10); ad_box.set_margin_start(10); ad_box.set_margin_end(10)
         
         row_ad = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
         lbl_ad = Gtk.Label(label="Enable Ad Blocking (Blocks known ad domains system-wide)", xalign=0)
@@ -1548,14 +1559,142 @@ class SettingsApp(Gtk.Application):
         row_ad.append(switch_ad)
         ad_box.append(row_ad)
         
-        ad_frame.set_child(ad_box)
-        box.append(ad_frame)
+        ad_expander.set_child(ad_box)
+        box.append(ad_expander)
+
+        # --- Global Blacklist Section ---
+        gb_expander = Gtk.Expander(label="Global Blacklist (Always Blocked)")
+        gb_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+        gb_box.set_margin_top(10); gb_box.set_margin_bottom(10); gb_box.set_margin_start(10); gb_box.set_margin_end(10)
+        
+        gb_add_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
+        self.entry_global_domain = Gtk.Entry(placeholder_text="tiktok.com", hexpand=True)
+        btn_gb_add = Gtk.Button(label="Block Globally")
+        btn_gb_add.connect("clicked", self.on_add_global_domain)
+        gb_add_row.append(self.entry_global_domain)
+        gb_add_row.append(btn_gb_add)
+        gb_box.append(gb_add_row)
+        
+        self.gb_listbox = Gtk.ListBox()
+        self.gb_listbox.add_css_class("boxed-list")
+        gb_box.append(self.gb_listbox)
+        
+        gb_expander.set_child(gb_box)
+        box.append(gb_expander)
+        
+        self.refresh_global_list()
+
+        # --- Keyword Blacklist ---
+        kw_expander = Gtk.Expander(label="Keyword Blacklist (Blocks Window Titles)")
+        kw_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+        kw_box.set_margin_top(10); kw_box.set_margin_bottom(10); kw_box.set_margin_start(10); kw_box.set_margin_end(10)
+        
+        kw_add_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
+        self.entry_keyword = Gtk.Entry(placeholder_text="chess, game, reddit", hexpand=True)
+        btn_kw_add = Gtk.Button(label="Block Keyword")
+        btn_kw_add.connect("clicked", self.on_add_keyword)
+        kw_add_row.append(self.entry_keyword)
+        kw_add_row.append(btn_kw_add)
+        kw_box.append(kw_add_row)
+        
+        self.kw_listbox = Gtk.ListBox()
+        self.kw_listbox.add_css_class("boxed-list")
+        kw_box.append(self.kw_listbox)
+        
+        kw_expander.set_child(kw_box)
+        box.append(kw_expander)
+        
+        self.refresh_keyword_list()
+
+        # --- Visual Guard ---
+        vg_expander = Gtk.Expander(label="Visual Guard (Skin Tone Block)")
+        vg_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+        vg_box.set_margin_top(10); vg_box.set_margin_bottom(10); vg_box.set_margin_start(10); vg_box.set_margin_end(10)
+        
+        vg_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
+        vg_lbl = Gtk.Label(label="Enable Visual Scanning (Experimental)", xalign=0, hexpand=True)
+        vg_switch = Gtk.Switch()
+        vg_switch.set_active(self.settings_data.get("visual_guard", False))
+        vg_switch.connect("state-set", self.on_visual_guard_change)
+        vg_row.append(vg_lbl); vg_row.append(vg_switch)
+        vg_box.append(vg_row)
+        
+        # Sensitivity Slider
+        sens_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
+        sens_val = self.settings_data.get("visual_sensitivity", 50)
+        
+        sens_lbl = Gtk.Label(label=f"Sensitivity: {int(sens_val)}%", xalign=0)
+        sens_adj = Gtk.Adjustment(value=sens_val, lower=10, upper=90, step_increment=5, page_increment=10)
+        sens_scale = Gtk.Scale(orientation=Gtk.Orientation.HORIZONTAL, adjustment=sens_adj)
+        sens_scale.set_hexpand(True)
+        sens_scale.set_digits(0)
+        sens_scale.add_mark(40, Gtk.PositionType.BOTTOM, "Strict")
+        sens_scale.add_mark(60, Gtk.PositionType.BOTTOM, "Loose")
+        
+        def on_sens_change(scale):
+            val = int(scale.get_value())
+            sens_lbl.set_label(f"Sensitivity: {val}%")
+            self.settings_data["visual_sensitivity"] = val
+            self.save_settings()
+            
+        sens_scale.connect("value-changed", on_sens_change)
+        
+        sens_row.append(sens_lbl)
+        sens_row.append(sens_scale)
+        vg_box.append(sens_row)
+        
+        vg_desc = Gtk.Label(label="Takes screenshots periodically to detect high skin-tone content. Requires 'python-pillow'.", wrap=True, xalign=0, css_classes=["dim-label"])
+        vg_box.append(vg_desc)
+        
+        vg_expander.set_child(vg_box)
+        box.append(vg_expander)
+
+        # --- Media Blackout ---
+        mb_expander = Gtk.Expander(label="Media Blackout (Text-Only Mode)")
+        mb_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+        mb_box.set_margin_top(10); mb_box.set_margin_bottom(10); mb_box.set_margin_start(10); mb_box.set_margin_end(10)
+        
+        mb_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
+        mb_lbl = Gtk.Label(label="Block All Images and Videos system-wide", xalign=0, hexpand=True)
+        mb_switch = Gtk.Switch()
+        mb_switch.set_active(self.settings_data.get("media_blackout", False))
+        mb_switch.connect("state-set", self.on_media_blackout_change)
+        mb_row.append(mb_lbl); mb_row.append(mb_switch)
+        mb_box.append(mb_row)
+        
+        mb_desc = Gtk.Label(label="Applies a 'No-Media' policy to Firefox and Chrome/Chromium. Requires browser restart.", wrap=True, xalign=0, css_classes=["dim-label"])
+        mb_box.append(mb_desc)
+        
+        # Exceptions
+        mb_box.append(Gtk.Label(label="Allowed Sites (Images Visible):", xalign=0, margin_top=10, css_classes=["heading"]))
+        
+        mb_add_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
+        self.entry_mb_allow = Gtk.Entry(placeholder_text="drive.google.com", hexpand=True)
+        btn_mb_add = Gtk.Button(label="Allow")
+        btn_mb_add.connect("clicked", self.on_add_media_allow)
+        mb_add_row.append(self.entry_mb_allow); mb_add_row.append(btn_mb_add)
+        mb_box.append(mb_add_row)
+        
+        self.mb_listbox = Gtk.ListBox()
+        self.mb_listbox.add_css_class("boxed-list")
+        mb_box.append(self.mb_listbox)
+        
+        mb_expander.set_child(mb_box)
+        box.append(mb_expander)
+        
+        self.refresh_media_allow_list()
+
+        # --- Keyword Blacklist ---
+        gs_expander = Gtk.Expander(label="Goal-Specific Filters")
+        gs_expander.set_expanded(True)
+        gs_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+        gs_box.set_margin_top(10); gs_box.set_margin_bottom(10); gs_box.set_margin_start(10); gs_box.set_margin_end(10)
 
         # Header
-        lbl_info = Gtk.Label(label="Manage blocklists for each goal. Sites added here will be blocked at the OS level during a session.")
+        lbl_info = Gtk.Label(label="Manage blocklists for each goal. Sites added here will be blocked during a session.")
         lbl_info.set_wrap(True)
         lbl_info.set_xalign(0)
-        box.append(lbl_info)
+        gs_box.append(lbl_info)
 
         # Goal Selector
         row_sel = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
@@ -1563,36 +1702,37 @@ class SettingsApp(Gtk.Application):
         
         goals = self.settings_data.get("goals", [])
         if not goals:
-            box.append(Gtk.Label(label="Please add Goals first."))
-            return box
-            
-        self.filter_goal_combo = Gtk.DropDown.new_from_strings(goals)
-        self.filter_goal_combo.set_selected(0)
-        self.filter_goal_combo.connect("notify::selected-item", self.refresh_filter_list)
-        row_sel.append(self.filter_goal_combo)
-        box.append(row_sel)
+            gs_box.append(Gtk.Label(label="Please add Goals first."))
+        else:
+            self.filter_goal_combo = Gtk.DropDown.new_from_strings(goals)
+            self.filter_goal_combo.set_selected(0)
+            self.filter_goal_combo.connect("notify::selected-item", self.refresh_filter_list)
+            row_sel.append(self.filter_goal_combo)
+            gs_box.append(row_sel)
 
-        # Add Domain Input
-        add_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
-        self.entry_new_domain = Gtk.Entry(placeholder_text="example.com")
-        self.entry_new_domain.set_hexpand(True)
-        btn_add = Gtk.Button(label="Block Site")
-        btn_add.connect("clicked", self.on_add_domain)
-        add_box.append(self.entry_new_domain)
-        add_box.append(btn_add)
-        box.append(add_box)
+            # Add Domain Input
+            add_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
+            self.entry_new_domain = Gtk.Entry(placeholder_text="example.com")
+            self.entry_new_domain.set_hexpand(True)
+            btn_add = Gtk.Button(label="Block Site")
+            btn_add.connect("clicked", self.on_add_domain)
+            add_box.append(self.entry_new_domain)
+            add_box.append(btn_add)
+            gs_box.append(add_box)
 
-        # Filter List
-        scroll = Gtk.ScrolledWindow()
-        scroll.set_vexpand(True)
-        self.filter_listbox = Gtk.ListBox()
-        self.filter_listbox.set_selection_mode(Gtk.SelectionMode.NONE)
-        self.filter_listbox.add_css_class("boxed-list")
-        scroll.set_child(self.filter_listbox)
-        box.append(scroll)
+            # Filter List
+            # Note: ListBox inside Expander inside ScrolledWindow is fine.
+            # We don't need another ScrolledWindow here unless the list is huge.
+            # But let's keep it simple.
+            self.filter_listbox = Gtk.ListBox()
+            self.filter_listbox.add_css_class("boxed-list")
+            gs_box.append(self.filter_listbox)
+        
+        gs_expander.set_child(gs_box)
+        box.append(gs_expander)
         
         self.refresh_filter_list(None, None)
-        return box
+        return scrolled
 
     def on_adblock_change(self, switch, state):
         self.settings_data["ad_blocking"] = state
@@ -1607,6 +1747,183 @@ class SettingsApp(Gtk.Application):
         import subprocess
         script = os.path.expanduser("~/.config/hypr/scripts/hosts_manager.py")
         subprocess.Popen(["sudo", script, "ads", "update"])
+
+    def clean_and_extract_domains(self, text):
+        cleaned = []
+        parts = text.split(',')
+        for part in parts:
+            d = part.strip()
+            if not d: continue
+            
+            # Remove protocol
+            if "://" in d:
+                d = d.split("://")[1]
+            
+            # Remove path (everything after first /)
+            if "/" in d:
+                d = d.split("/")[0]
+                
+            # Remove www. prefix
+            if d.startswith("www."):
+                d = d[4:]
+                
+            # Remove port if any (simple check)
+            if ":" in d:
+                d = d.split(":")[0]
+                
+            if d:
+                cleaned.append(d)
+        return cleaned
+
+    def refresh_global_list(self):
+        child = self.gb_listbox.get_first_child()
+        while child:
+            next_child = child.get_next_sibling()
+            self.gb_listbox.remove(child)
+            child = next_child
+            
+        for domain in self.settings_data.get("global_blacklist", []):
+            row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
+            row.set_margin_top(5); row.set_margin_bottom(5); row.set_margin_start(10); row.set_margin_end(10)
+            
+            lbl = Gtk.Label(label=domain, xalign=0, hexpand=True)
+            btn_del = Gtk.Button(icon_name="user-trash-symbolic")
+            btn_del.add_css_class("flat")
+            btn_del.connect("clicked", self.on_delete_global_domain, domain)
+            
+            row.append(lbl)
+            row.append(btn_del)
+            self.gb_listbox.append(row)
+
+    def on_add_global_domain(self, btn):
+        text = self.entry_global_domain.get_text().strip()
+        if not text: return
+        
+        domains = self.clean_and_extract_domains(text)
+        
+        if "global_blacklist" not in self.settings_data:
+            self.settings_data["global_blacklist"] = []
+            
+        for d in domains:
+            if d not in self.settings_data["global_blacklist"]:
+                self.settings_data["global_blacklist"].append(d)
+                
+        self.save_settings()
+        self.refresh_global_list()
+        self.entry_global_domain.set_text("")
+
+    def on_delete_global_domain(self, btn, domain):
+        if domain in self.settings_data.get("global_blacklist", []):
+            self.settings_data["global_blacklist"].remove(domain)
+            self.save_settings()
+            self.refresh_global_list()
+
+    def refresh_keyword_list(self):
+        child = self.kw_listbox.get_first_child()
+        while child:
+            next_child = child.get_next_sibling()
+            self.kw_listbox.remove(child)
+            child = next_child
+            
+        for kw in self.settings_data.get("keyword_blacklist", []):
+            row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
+            row.set_margin_top(5); row.set_margin_bottom(5); row.set_margin_start(10); row.set_margin_end(10)
+            
+            lbl = Gtk.Label(label=kw, xalign=0, hexpand=True)
+            btn_del = Gtk.Button(icon_name="user-trash-symbolic")
+            btn_del.add_css_class("flat")
+            btn_del.connect("clicked", self.on_delete_keyword, kw)
+            
+            row.append(lbl)
+            row.append(btn_del)
+            self.kw_listbox.append(row)
+
+    def on_add_keyword(self, btn):
+        text = self.entry_keyword.get_text().strip()
+        if not text: return
+        
+        parts = [p.strip() for p in text.split(',') if p.strip()]
+        
+        if "keyword_blacklist" not in self.settings_data:
+            self.settings_data["keyword_blacklist"] = []
+            
+        for k in parts:
+            if k not in self.settings_data["keyword_blacklist"]:
+                self.settings_data["keyword_blacklist"].append(k)
+                
+        self.save_settings()
+        self.refresh_keyword_list()
+        self.entry_keyword.set_text("")
+
+    def on_delete_keyword(self, btn, kw):
+        if kw in self.settings_data.get("keyword_blacklist", []):
+            self.settings_data["keyword_blacklist"].remove(kw)
+            self.save_settings()
+            self.refresh_keyword_list()
+
+    def refresh_media_allow_list(self):
+        child = self.mb_listbox.get_first_child()
+        while child:
+            next_child = child.get_next_sibling()
+            self.mb_listbox.remove(child)
+            child = next_child
+            
+        for d in self.settings_data.get("media_allowlist", []):
+            row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
+            row.set_margin_top(5); row.set_margin_bottom(5); row.set_margin_start(10); row.set_margin_end(10)
+            lbl = Gtk.Label(label=d, xalign=0, hexpand=True)
+            btn = Gtk.Button(icon_name="user-trash-symbolic", css_classes=["flat"])
+            btn.connect("clicked", self.on_delete_media_allow, d)
+            row.append(lbl); row.append(btn)
+            self.mb_listbox.append(row)
+
+    def on_add_media_allow(self, btn):
+        text = self.entry_mb_allow.get_text().strip()
+        if not text: return
+        domains = self.clean_and_extract_domains(text)
+        if "media_allowlist" not in self.settings_data: self.settings_data["media_allowlist"] = []
+        for d in domains:
+            if d not in self.settings_data["media_allowlist"]:
+                self.settings_data["media_allowlist"].append(d)
+        self.save_settings()
+        self.refresh_media_allow_list()
+        self.entry_mb_allow.set_text("")
+
+    def on_delete_media_allow(self, btn, d):
+        if d in self.settings_data.get("media_allowlist", []):
+            self.settings_data["media_allowlist"].remove(d)
+            self.save_settings()
+            self.refresh_media_allow_list()
+
+    def on_media_blackout_change(self, switch, state):
+        self.settings_data["media_blackout"] = state
+        self.save_settings()
+        
+        import subprocess
+        allowed = ",".join(self.settings_data.get("media_allowlist", []))
+        
+        if state:
+            # 1. Apply immediately (closes browsers)
+            script_apply = os.path.expanduser("~/.config/hypr/scripts/media_blackout.py")
+            subprocess.run(["python3", script_apply, "on", allowed])
+            
+            # 2. Start Daemon
+            script_guard = os.path.expanduser("~/.config/hypr/scripts/media_guard.py")
+            # Kill existing first to be safe
+            subprocess.run(["pkill", "-f", "media_guard.py"]) 
+            subprocess.Popen(["python3", script_guard, allowed])
+            
+        else:
+            # 1. Kill Daemon
+            subprocess.run(["pkill", "-f", "media_guard.py"])
+            
+            # 2. Revert settings
+            script_apply = os.path.expanduser("~/.config/hypr/scripts/media_blackout.py")
+            subprocess.run(["python3", script_apply, "off", allowed])
+
+    def on_visual_guard_change(self, switch, state):
+        self.settings_data["visual_guard"] = state
+        self.save_settings()
 
     def refresh_filter_list(self, *args):
         # Clear
@@ -1643,8 +1960,10 @@ class SettingsApp(Gtk.Application):
             self.filter_listbox.append(row)
 
     def on_add_domain(self, btn):
-        domain = self.entry_new_domain.get_text().strip()
-        if not domain: return
+        text = self.entry_new_domain.get_text().strip()
+        if not text: return
+        
+        domains = self.clean_and_extract_domains(text)
         
         goals = self.settings_data.get("goals", [])
         idx = self.filter_goal_combo.get_selected()
@@ -1655,11 +1974,13 @@ class SettingsApp(Gtk.Application):
         if goal not in self.settings_data["filters"]:
             self.settings_data["filters"][goal] = []
             
-        if domain not in self.settings_data["filters"][goal]:
-            self.settings_data["filters"][goal].append(domain)
-            self.save_settings()
-            self.refresh_filter_list()
-            self.entry_new_domain.set_text("")
+        for d in domains:
+            if d not in self.settings_data["filters"][goal]:
+                self.settings_data["filters"][goal].append(d)
+                
+        self.save_settings()
+        self.refresh_filter_list()
+        self.entry_new_domain.set_text("")
 
     def on_delete_domain(self, btn, goal, domain):
         if goal in self.settings_data.get("filters", {}):

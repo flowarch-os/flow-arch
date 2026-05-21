@@ -39,10 +39,20 @@ window#waybar {
 #mpris,
 #tray,
 #power-profiles-daemon,
-#custom-gammastep {
+#custom-gammastep,
+#custom-caffeine {
     padding: 0 5px;
     background-color: transparent;
     color: #ffffff;
+}
+
+#custom-caffeine {
+    font-size: 11px;
+}
+
+#custom-caffeine.active {
+    color: #00aaff;
+    font-weight: bold;
 }
 
 #clock {
