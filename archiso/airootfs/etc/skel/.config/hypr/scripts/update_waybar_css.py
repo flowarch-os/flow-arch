@@ -22,6 +22,10 @@ def regenerate_css(theme_dir):
     if not bg or not fg:
         return
 
+    # RGB tuples for both colors so we can mix alphas in the template
+    bg_r, bg_g, bg_b = int(bg[:2], 16), int(bg[2:4], 16), int(bg[4:], 16)
+    fg_r, fg_g, fg_b = int(fg[:2], 16), int(fg[2:4], 16), int(fg[4:], 16)
+
     # Generate CSS
     # Note: double curly braces {{ }} for literal braces in f-string
     css = f"""
@@ -34,48 +38,78 @@ def regenerate_css(theme_dir):
 }}
 
 window#waybar {{
-    background: rgba({int(bg[:2],16)}, {int(bg[2:4],16)}, {int(bg[4:],16)}, 0.8);
-    color: #{fg};
-    border-bottom: 2px solid #{fg};
+    background: rgba({bg_r}, {bg_g}, {bg_b}, 0.8);
+    color: #ffffff;
+    border: 1px solid rgba({fg_r}, {fg_g}, {fg_b}, 0.35);
+    border-radius: 12px;
+    margin: 6px 10px 0 10px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+}}
+
+#workspaces {{
+    margin: 0 4px;
 }}
 
 #workspaces button {{
-    padding: 0 5px;
+    padding: 0 9px;
+    margin: 3px 2px;
     color: #ffffff;
     background: transparent;
+    border-radius: 8px;
+    transition: background 150ms ease, color 150ms ease;
 }}
 
 #workspaces button.active {{
     color: #{fg};
-    border-bottom: 2px solid #{fg};
+    background: rgba({fg_r}, {fg_g}, {fg_b}, 0.18);
 }}
 
 #workspaces button:hover {{
-    background: rgba(255, 255, 255, 0.1);
+    background: rgba({fg_r}, {fg_g}, {fg_b}, 0.10);
+    color: #ffffff;
 }}
 
 #clock,
 #custom-clock,
+#custom-timer,
+#custom-gammastep,
+#custom-caffeine,
+#custom-settings,
 #battery,
 #cpu,
 #memory,
 #network,
 #pulseaudio,
+#power-profiles-daemon,
 #mpris,
 #tray {{
-    padding: 0 10px;
+    padding: 0 8px;
+    margin: 3px 2px;
     background-color: transparent;
     color: #ffffff;
+    border-radius: 8px;
+    transition: background 150ms ease;
 }}
 
-#clock {{
+#clock,
+#custom-clock {{
     color: #{fg};
     font-weight: bold;
-    margin-right: 20px;
+    margin-right: 14px;
+    margin-left: 6px;
+}}
+
+#tray {{
+    padding: 0 6px;
+}}
+
+#custom-settings {{
+    color: #{fg};
+    margin-right: 4px;
 }}
 
 #battery.charging {{
-    color: #00ff00;
+    color: #00ff88;
 }}
 
 #battery.warning:not(.charging) {{
@@ -83,18 +117,17 @@ window#waybar {{
 }}
 
 #battery.critical:not(.charging) {{
-    color: #ff0000;
-    animation-name: blink;
-    animation-duration: 0.5s;
-    animation-timing-function: linear;
+    color: #ff5555;
+    animation-name: pulse;
+    animation-duration: 1s;
+    animation-timing-function: ease-in-out;
     animation-iteration-count: infinite;
     animation-direction: alternate;
 }}
 
-@keyframes blink {{
+@keyframes pulse {{
     to {{
-        color: #000000;
-        background-color: #ff0000; 
+        opacity: 0.4;
     }}
 }}
 """

@@ -17,8 +17,17 @@ systemctl --user restart pipewire wireplumber
 # Start Polkit Agent (Critical for sudo/pkexec GUI prompts)
 /usr/lib/hyprpolkitagent/hyprpolkitagent &
 
-# Start Wallpaper Daemon
-hyprpaper &
+# Start Wallpaper Engine (reads active theme's wallpaper.conf manifest and
+# launches swww / mpvpaper / hyprpaper as appropriate; falls back to static
+# hyprpaper if dispatcher fails).
+{
+    active_theme=$(basename "$(dirname "$(readlink -f ~/.config/hypr/theme.conf)")" 2>/dev/null)
+    if [ -n "$active_theme" ] && [ -x ~/.config/hypr/scripts/wallpaper_engine.sh ]; then
+        ~/.config/hypr/scripts/wallpaper_engine.sh "$active_theme" || hyprpaper &
+    else
+        hyprpaper &
+    fi
+} &
 
 # Start Idle Daemon
 hypridle &

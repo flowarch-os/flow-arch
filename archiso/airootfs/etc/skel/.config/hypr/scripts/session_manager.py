@@ -30,13 +30,58 @@ def write_file(path, content):
         pass
 
 def load_settings():
+    """Return raw settings dict, then wrap with _normalize() to expose v2 layout
+    with v1-fallback so existing key access patterns keep working."""
     if os.path.exists(SETTINGS_FILE):
         try:
             with open(SETTINGS_FILE, 'r') as f:
-                return json.load(f)
+                return _normalize(json.load(f))
         except:
             pass
-    return {}
+    return _normalize({})
+
+
+def _normalize(raw):
+    """Make a settings dict look v1-flat regardless of whether it's actually v1
+    or v2. Lets the rest of session_manager keep using settings.get('goals') etc.
+
+    v2 keys are read first; v1 keys are used as fallback. The returned dict
+    contains BOTH the original namespaced structure AND a flat overlay.
+    """
+    if not isinstance(raw, dict):
+        raw = {}
+    focus = raw.get("focus", {}) if isinstance(raw.get("focus"), dict) else {}
+    filters_ns = raw.get("filters", {}) if isinstance(raw.get("filters"), dict) else {}
+    schedule = raw.get("schedule", {}) if isinstance(raw.get("schedule"), dict) else {}
+    system_ns = raw.get("system", {}) if isinstance(raw.get("system"), dict) else {}
+    vg = filters_ns.get("visual_guard", {}) if isinstance(filters_ns.get("visual_guard"), dict) else {}
+    mb = filters_ns.get("media_blackout", {}) if isinstance(filters_ns.get("media_blackout"), dict) else {}
+    bedtime = schedule.get("bedtime", {}) if isinstance(schedule.get("bedtime"), dict) else {}
+
+    flat = {
+        "goals":              focus.get("goals", raw.get("goals", [])),
+        "goal_themes":        focus.get("goal_themes", raw.get("goal_themes", {})),
+        "pomodoro":           focus.get("pomodoro", raw.get("pomodoro", {})),
+        "shutdown_feedback":  focus.get("shutdown_feedback", raw.get("shutdown_feedback", True)),
+        "ad_blocking":        filters_ns.get("ad_blocking", raw.get("ad_blocking", False)),
+        "global_blacklist":   filters_ns.get("global_blacklist", raw.get("global_blacklist", [])),
+        "keyword_blacklist":  filters_ns.get("keyword_blacklist", raw.get("keyword_blacklist", [])),
+        "filters":            filters_ns.get("goal_filters", raw.get("filters", {})),
+        "visual_guard":       vg.get("enabled", raw.get("visual_guard", False)),
+        "visual_sensitivity": vg.get("sensitivity", raw.get("visual_sensitivity", 50)),
+        "media_blackout":     mb.get("enabled", raw.get("media_blackout", False)),
+        "media_allowlist":    mb.get("allowlist", raw.get("media_allowlist", [])),
+        "calendar_events":    schedule.get("calendar_events", raw.get("calendar_events", [])),
+        "tasks":              schedule.get("tasks", raw.get("tasks", [])),
+        "bedtime_start":      bedtime.get("start", raw.get("bedtime_start", "23:00")),
+        "bedtime_end":        bedtime.get("end", raw.get("bedtime_end", "05:00")),
+    }
+    # Preserve namespaces alongside the flat view.
+    flat["focus"] = focus
+    flat["_filters_ns"] = filters_ns
+    flat["schedule"] = schedule
+    flat["system"] = system_ns
+    return flat
 
 def get_session_data(timeout=10):
     start_wait = time.time()

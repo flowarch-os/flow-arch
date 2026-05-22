@@ -75,8 +75,10 @@ def run_feedback_gui(goal, intention):
 def main():
     settings = load_settings()
     
-    # Check if shutdown feedback is enabled (default True)
-    if settings.get("shutdown_feedback", True):
+    # Check if shutdown feedback is enabled (default True). v2 schema: focus.shutdown_feedback.
+    focus = settings.get("focus") if isinstance(settings.get("focus"), dict) else {}
+    enabled = focus.get("shutdown_feedback", settings.get("shutdown_feedback", True))
+    if enabled:
         session = get_current_session()
         
         # Only prompt if we have a valid session context

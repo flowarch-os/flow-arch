@@ -43,29 +43,37 @@ ln -sf "$themes_dir/$theme/waybar.css" "$waybar_dir/style.css"
 # 3. link wofi style
 ln -sf "$themes_dir/$theme/wofi.css" "$wofi_dir/style.css"
 
-# 4. update wallpaper
-wallpaper="$themes_dir/$theme/wallpaper.png"
-
-# check for wallpaper daemon
-if pgrep -x "swww-daemon" > /dev/null; then
-    # swww: simple fade, very fast
-    swww img "$wallpaper" --transition-type simple --transition-step 200
-elif pgrep -x "hyprpaper" > /dev/null; then
-    # hyprpaper: use ipc for instant switch
-    hyprctl hyprpaper preload "$wallpaper"
-    hyprctl hyprpaper wallpaper ",$wallpaper"
-    # optional: unload unused wallpapers to save ram
-    hyprctl hyprpaper unload all
-elif command -v hyprpaper > /dev/null; then
-    # hyprpaper not running, start it
-    echo "preload = $wallpaper" > "$hypr_dir/hyprpaper.conf"
-    echo "wallpaper = ,$wallpaper" >> "$hypr_dir/hyprpaper.conf"
-    hyprpaper & > /dev/null 2>&1
-else
-    echo "warning: no wallpaper daemon found"
+# 4. swap kitty palette + live-reload running kitty windows
+if [ -f "$themes_dir/$theme/kitty.conf" ]; then
+    ln -sf "$themes_dir/$theme/kitty.conf" "$HOME/.config/kitty/colors.conf"
+    # SIGUSR1 tells kitty to re-read its config (palette is via `include colors.conf`)
+    pkill -SIGUSR1 -x kitty 2>/dev/null || true
 fi
 
-# 5. reload hyprland to apply new colors
+# 5. render hyprlock from the theme template (colors + a wallpaper image)
+if [ -x "$hypr_dir/scripts/render_hyprlock.sh" ]; then
+    "$hypr_dir/scripts/render_hyprlock.sh" "$theme" >/dev/null
+fi
+
+# 6. cursor theme
+if [ -f "$themes_dir/$theme/cursor" ]; then
+    cursor_theme=$(cat "$themes_dir/$theme/cursor")
+    # Apply via gsettings (covers GTK + many GUI apps)
+    gsettings set org.gnome.desktop.interface cursor-theme "$cursor_theme" 2>/dev/null || true
+    # Persist via xsettingsd for X11/legacy apps; SIGHUP to reload
+    xsettings_conf="$HOME/.config/xsettingsd/xsettingsd.conf"
+    if [ -f "$xsettings_conf" ]; then
+        sed -i "s|^Gtk/CursorThemeName .*|Gtk/CursorThemeName \"$cursor_theme\"|" "$xsettings_conf"
+        pkill -HUP -x xsettingsd 2>/dev/null || true
+    fi
+    # Tell Hyprland to pick up the new cursor for newly-spawned clients
+    hyprctl setcursor "$cursor_theme" 32 >/dev/null 2>&1 || true
+fi
+
+# 7. update wallpaper (dispatcher reads theme manifest and picks engine)
+"$hypr_dir/scripts/wallpaper_engine.sh" "$theme"
+
+# 8. reload hyprland to apply new colors + decoration vars
 hyprctl reload
 
 echo "done!"

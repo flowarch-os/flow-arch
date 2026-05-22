@@ -1,39 +1,39 @@
 
 QWidget {
-    background-color: #000030;
+    background-color: #0a1a2e;
     color: #ffffff;
 }
 QLineEdit, QTextEdit, QPlainTextEdit, QAbstractItemView {
-    background-color: #000030;
+    background-color: #0a1a2e;
     color: #ffffff;
-    border: 1px solid #00aaff;
-    selection-background-color: #00aaff;
-    selection-color: #000030;
+    border: 1px solid #5fbaff;
+    selection-background-color: #5fbaff;
+    selection-color: #0a1a2e;
 }
 QListView, QTreeView, QTableView {
-    background-color: #000030;
-    alternate-background-color: #000030;
+    background-color: #0a1a2e;
+    alternate-background-color: #0a1a2e;
 }
 QListView::item:selected, QTreeView::item:selected {
-    background-color: #00aaff;
-    color: #000030;
+    background-color: #5fbaff;
+    color: #0a1a2e;
 }
 QPushButton {
-    background-color: #000030;
+    background-color: #0a1a2e;
     color: #ffffff;
-    border: 1px solid #00aaff;
+    border: 1px solid #5fbaff;
     padding: 4px;
 }
 QPushButton:hover {
-    background-color: #00aaff;
-    color: #000030;
+    background-color: #5fbaff;
+    color: #0a1a2e;
 }
 QMenu {
-    background-color: #000030;
+    background-color: #0a1a2e;
     color: #ffffff;
-    border: 1px solid #00aaff;
+    border: 1px solid #5fbaff;
 }
 QMenu::item:selected {
-    background-color: #00aaff;
-    color: #000030;
+    background-color: #5fbaff;
+    color: #0a1a2e;
 }

@@ -12,3 +12,6 @@ PS1='[\u@\h \W]\$ '
 # Hijack shutdown commands to show feedback prompt
 alias shutdown='~/.config/hypr/scripts/shutdown_script.py'
 alias poweroff='~/.config/hypr/scripts/shutdown_script.py'
+
+# OpenClaw Completion
+

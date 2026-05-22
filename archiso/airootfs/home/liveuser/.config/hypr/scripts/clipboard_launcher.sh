@@ -1,113 +1,62 @@
 #!/bin/bash
+# Toggle the custom clipboard manager. Computes a cursor-anchored monitor-local
+# position and hands it to clipboard_manager.py (PySide6+QML on top of cliphist).
 
-# Configuration
-WIDTH=400
-HEIGHT=500
+WIDTH=540
+HEIGHT=660
+APP="$HOME/.config/hypr/scripts/clipboard_manager.py"
 
-# 1. Toggle Logic: If running, close it and exit (Single instance)
-if pgrep -f "wofi.*cliphist"; then
-    pkill -f "wofi.*cliphist"
+# 1. Single-instance toggle
+if pgrep -f "clipboard_manager.py" >/dev/null; then
+    pkill -f "clipboard_manager.py"
     exit 0
 fi
 
-# 2. Calculate Monitor-Relative Coordinates
-# We need to know:
-# - Which monitor has the cursor?
-# - What are the cursor's X,Y relative to THAT monitor's top-left?
-# - Output format: "X_POS Y_POS MONITOR_NAME"
-CALC_RESULT=$(python3 -c '
-import subprocess, json, sys, math
+# 2. Compute monitor-relative window position centered on cursor
+CALC_RESULT=$(python3 - "$WIDTH" "$HEIGHT" <<'PY'
+import subprocess, json, sys
 
 w, h = int(sys.argv[1]), int(sys.argv[2])
 
 try:
-    # Get Monitor Info
     monitors = json.loads(subprocess.check_output(["hyprctl", "monitors", "-j"]).decode())
-    
-    # Get Global Cursor Position
-    cursor_out = subprocess.check_output(["hyprctl", "cursorpos"]).decode().strip()
-    gx, gy = map(int, cursor_out.split(","))
-except:
+    gx, gy = map(int, subprocess.check_output(["hyprctl", "cursorpos"]).decode().strip().split(","))
+except Exception:
     sys.exit(1)
 
-target_mon = None
-
-# Find the monitor containing the cursor
+target = None
 for m in monitors:
-    # In Hyprland, x/y are logical position. 
-    # width/height are physical pixels, so divide by scale for logical size.
-    mx = m["x"]
-    my = m["y"]
-    scale = m["scale"]
-    mw = m["width"] / scale
-    mh = m["height"] / scale
-    
+    mx, my, scale = m["x"], m["y"], m["scale"]
+    mw, mh = m["width"] / scale, m["height"] / scale
     if mx <= gx < mx + mw and my <= gy < my + mh:
-        target_mon = m
-        break
-
-# Fallback if cursor is somehow off-screen (use focused monitor)
-if not target_mon:
+        target = m; break
+if not target:
     for m in monitors:
         if m["focused"]:
-            target_mon = m
-            break
+            target = m; break
 
-if target_mon:
-    # Monitor details
-    mx = target_mon["x"]
-    my = target_mon["y"]
-    scale = target_mon["scale"]
-    mw = target_mon["width"] / scale
-    mh = target_mon["height"] / scale
-    name = target_mon["name"] # Use name or ID for wofi --monitor
+if not target:
+    print("0 0"); sys.exit(0)
 
-    # Calculate Relative Coordinates (Cursor Global - Monitor Origin)
-    rel_x = gx - mx
-    rel_y = gy - my
+mx, my, scale = target["x"], target["y"], target["scale"]
+mw, mh = target["width"] / scale, target["height"] / scale
 
-    # Center the window around the cursor (still relative to monitor)
-    final_x = rel_x - (w / 2)
-    final_y = rel_y - (h / 2)
+# Anchor: center the window on the cursor, then clamp inside the monitor with a
+# small margin so it doesn't kiss the screen edge.
+margin = 8
+fx = (gx - mx) - w / 2
+fy = (gy - my) - h / 2
+fx = max(margin, min(fx, mw - w - margin))
+fy = max(margin, min(fy, mh - h - margin))
 
-    # Clamp to ensure window stays inside the monitor
-    final_x = max(0, min(final_x, mw - w))
-    final_y = max(0, min(final_y, mh - h))
+# Hyprland windows want absolute (global) coords for floating placement.
+print(f"{int(mx + fx)} {int(my + fy)}")
+PY
+)
 
-    # Wofi expects integers
-    print(f"{int(final_x)} {int(final_y)} {name}")
-else:
-    print("0 0")
-' "$WIDTH" "$HEIGHT")
+read -r GX GY <<< "$CALC_RESULT"
+[ -z "$GX" ] && GX=100
+[ -z "$GY" ] && GY=100
 
-# Read the results
-read -r X_POS Y_POS MONITOR_NAME <<< "$CALC_RESULT"
-
-# 3. Launch Wofi
-# --location 1: Top-Left anchor (Crucial! Otherwise X/Y are offsets from center)
-# --monitor: Forces it to the correct screen
-# --x, --y: The calculated relative coordinates
-WOFI_ARGS="--dmenu --name cliphist --width $WIDTH --height $HEIGHT --location 1 --x $X_POS --y $Y_POS --monitor $MONITOR_NAME --cache-file /dev/null --hide-scroll"
-
-# Define special actions
-DEL_MODE="[   Delete Mode ]"
-CLEAR_ALL="[   Clear History ]"
-
-HISTORY=$(cliphist list)
-SELECTION=$(echo -e "$HISTORY\n$DEL_MODE\n$CLEAR_ALL" | wofi $WOFI_ARGS --prompt "Clipboard")
-
-if [ -n "$SELECTION" ]; then
-    case "$SELECTION" in
-        "$DEL_MODE")
-            DEL_SELECTION=$(cliphist list | wofi $WOFI_ARGS --prompt "DELETE ENTRY")
-            [ -n "$DEL_SELECTION" ] && echo "$DEL_SELECTION" | cliphist delete
-            ;;
-        "$CLEAR_ALL")
-            CONFIRM=$(echo -e "No\nYes" | wofi $WOFI_ARGS --prompt "Clear ALL history?" --lines 2 --height 150)
-            [ "$CONFIRM" == "Yes" ] && cliphist wipe
-            ;;
-        *)
-            echo "$SELECTION" | cliphist decode | wl-copy
-            ;; 
-    esac
-fi
+# 3. Launch the app
+exec python3 "$APP" --pos "$GX,$GY"
